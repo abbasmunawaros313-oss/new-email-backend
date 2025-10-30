@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
@@ -18,6 +17,8 @@ app.get("/", (req, res) => {
   res.send({ status: "Server is running" });
 });
 
+// --- Transporter Configuration ---
+// This is now correct: Port 465, secure, and no insecure TLS flag.
 const transporter = nodemailer.createTransport({
   host: "mail.smtp2go.com",
   port: 465,
@@ -26,14 +27,9 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-  // The tls: { rejectUnauthorized: false } line has been removed.
 });
 
-transporter.verify((err) => {
-  if (err) console.error("SMTP2GO Error:", err);
-  else console.log("✅ SMTP2GO Connected");
-});
-
+// --- API Endpoint ---
 app.post("/send-email", async (req, res) => {
   try {
     const { subject, body, recipients, file } = req.body;
@@ -73,6 +69,20 @@ app.post("/send-email", async (req, res) => {
 
 app.options("/send-email", (req, res) => res.sendStatus(204));
 
-const PORT = process.env.PORT; // Railway PORT or fallback for local
-app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
+// --- Server Startup ---
+const PORT = process.env.PORT; 
 
+// Start the server FIRST
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on ${PORT}`);
+  
+  // THEN, verify the SMTP connection in the background.
+  // This stops it from blocking the Railway health check.
+  transporter.verify((err) => {
+    if (err) {
+      console.error("SMTP2GO Background Verify Error:", err);
+    } else {
+      console.log("✅ SMTP2GO Connected");
+    }
+  });
+});
