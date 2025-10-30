@@ -21,12 +21,13 @@ app.get("/", (req, res) => {
 // This is now correct: Port 465, secure, and no insecure TLS flag.
 const transporter = nodemailer.createTransport({
   host: "mail.smtp2go.com",
-  port: 465,
-  secure: true, 
+  port: 587,       // <-- CHANGE THIS
+  secure: false,   // <-- CHANGE THIS (port 587 uses STARTTLS)
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  requireTLS: true // This ensures the connection upgrades to TLS
 });
 
 // --- API Endpoint ---
