@@ -5,14 +5,15 @@ import fetch from "node-fetch";
 
 const app = express();
 
-// ✅ CORS
+// ✅ CORS middleware (allow only your frontend)
 app.use(cors({
   origin: "https://ostravel-portal-orignal.vercel.app",
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
 }));
 
-app.use(express.json({ limit: "20mb" }));
+// ✅ JSON parser with larger payload limit
+app.use(express.json({ limit: "25mb" }));
 
 // ✅ Health check
 app.get("/", (req, res) => res.json({ status: "Server running" }));
@@ -26,7 +27,7 @@ app.post("/send-email", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const sendPromises = recipients.map(async r => {
+    const sendPromises = recipients.map(async (r) => {
       const payload = {
         api_key: process.env.SMTP_API_KEY,
         to: r.email,
@@ -35,15 +36,16 @@ app.post("/send-email", async (req, res) => {
         text_body: body.replace("{{name}}", r.name || "Customer"),
       };
 
+      // ✅ Attachments formatting
       if (file?.name && file?.content) {
-                payload.attachments = [
-                  {
-                    filename: file.name, 
-                    mimetype: file.type || "application/octet-stream",
-                    fileblob: file.content.replace(/\s/g, ""), 
-                  }
-                ];
-              }
+        payload.attachments = [
+          {
+            name: file.name,
+            type: file.type || "application/octet-stream",
+            content: file.content.replace(/^data:.*;base64,/, ""), // strip data URL header
+          }
+        ];
+      }
 
       const resp = await fetch("https://api.smtp2go.com/v3/email/send", {
         method: "POST",
@@ -69,9 +71,13 @@ app.post("/send-email", async (req, res) => {
   }
 });
 
-// ✅ OPTIONS preflight
+// ✅ OPTIONS preflight for CORS
 app.options("/send-email", (req, res) => res.sendStatus(204));
 
-// ✅ Start server
-const PORT = 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+// ✅ Start server on dynamic Railway port
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+// ✅ Catch unhandled errors
+process.on("uncaughtException", console.error);
+process.on("unhandledRejection", console.error);
