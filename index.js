@@ -73,5 +73,5 @@ app.post("/send-email", async (req, res) => {
 
 app.options("/send-email", (req, res) => res.sendStatus(204));
 
-const PORT = process.env.PORT || 5000;
+const PORT = 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
