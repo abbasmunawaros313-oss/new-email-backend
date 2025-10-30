@@ -5,14 +5,14 @@ import fetch from "node-fetch";
 
 const app = express();
 
-// ✅ CORS middleware (allow only your frontend)
+// ✅ CORS middleware for production frontend
 app.use(cors({
   origin: "https://ostravel-portal-orignal.vercel.app",
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
 }));
 
-// ✅ JSON parser with larger payload limit
+// ✅ JSON parser with larger payload
 app.use(express.json({ limit: "25mb" }));
 
 // ✅ Health check
@@ -27,7 +27,7 @@ app.post("/send-email", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const sendPromises = recipients.map(async (r) => {
+    const sendPromises = recipients.map(async r => {
       const payload = {
         api_key: process.env.SMTP_API_KEY,
         to: r.email,
@@ -36,13 +36,13 @@ app.post("/send-email", async (req, res) => {
         text_body: body.replace("{{name}}", r.name || "Customer"),
       };
 
-      // ✅ Attachments formatting
+      // ✅ Use your original attachment code
       if (file?.name && file?.content) {
         payload.attachments = [
           {
-            name: file.name,
-            type: file.type || "application/octet-stream",
-            content: file.content.replace(/^data:.*;base64,/, ""), // strip data URL header
+            filename: file.name, 
+            mimetype: file.type || "application/octet-stream",
+            fileblob: file.content.replace(/\s/g, ""), 
           }
         ];
       }
@@ -71,7 +71,7 @@ app.post("/send-email", async (req, res) => {
   }
 });
 
-// ✅ OPTIONS preflight for CORS
+// ✅ OPTIONS preflight
 app.options("/send-email", (req, res) => res.sendStatus(204));
 
 // ✅ Start server on dynamic Railway port
