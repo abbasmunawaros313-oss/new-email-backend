@@ -1,44 +1,23 @@
-// server.js
-const express = require("express");
-const cors = require("cors");
-const nodemailer = require("nodemailer");
+import "dotenv/config";
+import express from "express";
+import cors from "cors";
+import fetch from "node-fetch";
 
 const app = express();
 
-// ✅ CORS setup (allow all origins for local testing)
+// ✅ CORS
 app.use(cors({
-  origin: "*",
+  origin: "https://ostravel-portal-orignal.vercel.app",
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
 }));
 
-// ✅ Parse JSON requests (attachments up to 20MB)
 app.use(express.json({ limit: "20mb" }));
 
-// ✅ Health check route
-app.get("/", (req, res) => {
-  res.send({ status: "Server is running" });
-});
+// ✅ Health check
+app.get("/", (req, res) => res.json({ status: "Server running" }));
 
-// ✅ SMTP2GO transporter
-const transporter = nodemailer.createTransport({
-  host: "mail.smtp2go.com",
-  port: 587,             // recommended SMTP port
-  secure: false,           // TLS false for port 2525
-  auth: {
-    user: "munawar",         // your SMTP username (from SMTP2GO)
-    pass: "CzVfsDb4DNC5P3nK", // SMTP password
-  },
-  tls: { rejectUnauthorized: false }, // optional for local testing
-});
-
-// ✅ Verify SMTP connection on startup
-transporter.verify((err, success) => {
-  if (err) console.error("SMTP2GO Connection Error:", err);
-  else console.log("✅ SMTP2GO Connected Successfully!");
-});
-
-// ✅ Send email API
+// ✅ Send email route
 app.post("/send-email", async (req, res) => {
   try {
     const { subject, body, recipients, file } = req.body;
@@ -47,43 +26,50 @@ app.post("/send-email", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Send emails to all recipients
-    const sendPromises = recipients.map(r => {
-      const mailOptions = {
-        from: "admin@ostravels.com",  // your verified sender
+    const sendPromises = recipients.map(async r => {
+      const payload = {
+        api_key: process.env.SMTP_API_KEY,
         to: r.email,
+        sender: process.env.SENDER_EMAIL,
         subject,
-        text: body.replace("{{name}}", r.name || "Customer"),
+        text_body: body.replace("{{name}}", r.name || "Customer"),
       };
 
-      // Optional attachment
       if (file?.name && file?.content) {
-        mailOptions.attachments = [
-          {
-            filename: file.name,
-            content: Buffer.from(file.content, "base64"),
-            contentType: file.type || "application/octet-stream",
-          },
-        ];
-        console.log(`Attachment included: ${file.name}`);
+                payload.attachments = [
+                  {
+                    filename: file.name, 
+                    mimetype: file.type || "application/octet-stream",
+                    fileblob: file.content.replace(/\s/g, ""), 
+                  }
+                ];
+              }
+
+      const resp = await fetch("https://api.smtp2go.com/v3/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await resp.json();
+
+      if (!data.data || (data.data.failed && data.data.failed > 0)) {
+        throw new Error(`Failed to send to ${r.email}: ${JSON.stringify(data)}`);
       }
 
-      return transporter.sendMail(mailOptions);
+      return data;
     });
 
     await Promise.all(sendPromises);
-    res.json({ success: true, sent: recipients.length });
 
+    res.json({ success: true, sent: recipients.length });
   } catch (err) {
-    console.error("SMTP2GO Error:", err);
-    res.status(500).json({
-      error: "Failed to send emails",
-      details: err.response || err.message || err,
-    });
+    console.error("SMTP2GO API Error:", err);
+    res.status(500).json({ error: "Failed to send emails", details: err.message });
   }
 });
 
-// ✅ Handle OPTIONS preflight requests for CORS
+// ✅ OPTIONS preflight
 app.options("/send-email", (req, res) => res.sendStatus(204));
 
 // ✅ Start server

@@ -9,11 +9,21 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "type": "module",
   "dependencies": {
     "@sendgrid/mail": "^8.1.5",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.2",
+    "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "node-fetch": "^2.7.0",
     "nodemailer": "^7.0.10"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abbasmunawaros313-oss/new-email-backend.git"
+  },
+  "bugs": {
+    "url": "https://github.com/abbasmunawaros313-oss/new-email-backend/issues"
+  },
+  "homepage": "https://github.com/abbasmunawaros313-oss/new-email-backend#readme"
 }
