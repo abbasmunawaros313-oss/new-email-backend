@@ -20,13 +20,13 @@ app.get("/", (req, res) => {
 
 const transporter = nodemailer.createTransport({
   host: "mail.smtp2go.com",
-  port: 465,       // <-- CHANGE THIS
-  secure: true,    // <-- CHANGE THIS (port 465 requires direct SSL)
+  port: 465,
+  secure: true, 
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-  tls: { rejectUnauthorized: false },
+  // The tls: { rejectUnauthorized: false } line has been removed.
 });
 
 transporter.verify((err) => {
