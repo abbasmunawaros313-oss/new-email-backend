@@ -20,7 +20,7 @@ app.get("/", (req, res) => {
 
 const transporter = nodemailer.createTransport({
   host: "mail.smtp2go.com",
-  port: 587,
+  port: 2525,
   secure: false,
   auth: {
     user: process.env.SMTP_USER,
@@ -73,6 +73,6 @@ app.post("/send-email", async (req, res) => {
 
 app.options("/send-email", (req, res) => res.sendStatus(204));
 
-const PORT = process.env.PORT || 5000; // Railway PORT or fallback for local
+const PORT = process.env.PORT; // Railway PORT or fallback for local
 app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
 
