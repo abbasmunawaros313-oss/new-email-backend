@@ -32,6 +32,7 @@ app.post("/send-email", async (req, res) => {
         api_key: process.env.SMTP_API_KEY,
         to: r.email,
         sender: process.env.SENDER_EMAIL,
+          sender_name: "OS Travel and Tours",
         subject,
         text_body: body.replace("{{name}}", r.name || "Customer"),
       };
