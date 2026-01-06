@@ -5,9 +5,20 @@ import fetch from "node-fetch";
 
 const app = express();
 
-// ✅ CORS middleware for production frontend
+const allowedOrigins = [
+  "https://ostravel-portal-orignal.vercel.app", // production
+  "http://localhost:5173",                      // local dev
+];
+
 app.use(cors({
-  origin: "https://ostravel-portal-orignal.vercel.app",
+  origin: (origin, callback) => {
+    // allow requests with no origin (like Postman)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
 }));
