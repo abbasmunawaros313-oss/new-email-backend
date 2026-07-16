@@ -157,14 +157,19 @@ const toDateSafe = (val) => {
 // This means nothing breaks — clients that don't support HTML use plain text.
 // ==========================================================================
 function toHtml(text) {
-  // Escape HTML special chars, then format
-  const escaped = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-  // Convert newlines to <br> and wrap in branded template
-  const bodyHtml = escaped.replace(/\n/g, "<br>");
+  // Convert every character to a safe HTML representation:
+  // - ASCII special chars (&, <, >) → HTML entities
+  // - ALL non-ASCII chars (emojis 🎉, bullets •, Arabic, accented, etc.) → &#codepoint;
+  //   This is the only reliable way to render emojis in email HTML across all clients.
+  const bodyHtml = Array.from(text).map(char => {
+    const code = char.codePointAt(0);
+    if (char === "&") return "&amp;";
+    if (char === "<") return "&lt;";
+    if (char === ">") return "&gt;";
+    if (char === "\n") return "<br>";
+    if (code > 127) return `&#${code};`; // emoji, bullet, accented, Arabic, etc.
+    return char;
+  }).join("");
 
   return `<!DOCTYPE html>
 <html lang="en">
