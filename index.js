@@ -79,14 +79,17 @@ app.post("/send-email", async (req, res) => {
     }
 
     const sendPromises = recipients.map(async r => {
+      const resolvedBody = body.replace("{{name}}", r.name || "Customer");
       const payload = {
         api_key: process.env.SMTP_API_KEY,
         to: r.email,
         sender: process.env.SENDER_EMAIL,
           sender_name: "OS Travel and Tours",
         subject,
-        text_body: body.replace("{{name}}", r.name || "Customer"),
+        text_body: resolvedBody,          // plain-text fallback
+        html_body: toHtml(resolvedBody),  // rich HTML with emojis + branding
       };
+
 
       // ✅ Use your original attachment code
       if (file?.name && file?.content) {
@@ -147,6 +150,59 @@ const toDateSafe = (val) => {
   return isNaN(d.getTime()) ? null : d;
 };
 
+// ==========================================================================
+// HTML EMAIL HELPER
+// Converts plain-text email body → branded HTML email.
+// SMTP2GO receives BOTH text_body (fallback) AND html_body (rich display).
+// This means nothing breaks — clients that don't support HTML use plain text.
+// ==========================================================================
+function toHtml(text) {
+  // Escape HTML special chars, then format
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // Convert newlines to <br> and wrap in branded template
+  const bodyHtml = escaped.replace(/\n/g, "<br>");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:30px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);max-width:600px;width:100%;">
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#1a3c6e 0%,#2563ab 100%);padding:32px 40px;text-align:center;">
+            <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:700;letter-spacing:0.5px;">&#9992;&#65039; OS Travel &amp; Tours</h1>
+            <p style="margin:6px 0 0;color:#b3d4f5;font-size:13px;">Your Trusted Travel Partner</p>
+          </td>
+        </tr>
+        <!-- Body -->
+        <tr>
+          <td style="padding:36px 40px;color:#2d3748;font-size:15px;line-height:1.8;">
+            ${bodyHtml}
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;">
+            <p style="margin:0;font-size:12px;color:#718096;">OS Travel and Tours &bull; 0333-5542877 &bull; ostravelisb@gmail.com</p>
+            <p style="margin:4px 0 0;font-size:12px;color:#718096;"><a href="https://www.ostravel.pk/" style="color:#2563ab;text-decoration:none;">www.ostravel.pk</a></p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 async function sendEmailViaSMTP2GO({ to, subject, body }) {
   const payload = {
     api_key: process.env.SMTP_API_KEY,
@@ -154,7 +210,8 @@ async function sendEmailViaSMTP2GO({ to, subject, body }) {
     sender: process.env.SENDER_EMAIL,
     sender_name: "OS Travel and Tours",
     subject,
-    text_body: body,
+    text_body: body,       // plain-text fallback (always present)
+    html_body: toHtml(body), // rich HTML (emojis, formatting — used by modern clients)
   };
   const response = await fetch("https://api.smtp2go.com/v3/email/send", {
     method: "POST",
