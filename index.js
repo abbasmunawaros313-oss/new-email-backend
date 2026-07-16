@@ -3,18 +3,8 @@ import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
 import admin from "firebase-admin";
-import compression from "compression";
 
 const app = express();
-
-// 01: Compress API responses in transit
-app.use(compression({
-  threshold: 0,
-  filter: (req, res) => {
-    if (req.headers["x-no-compression"]) return false;
-    return compression.filter(req, res);
-  }
-}));
 
 const allowedOrigins = [
   "https://ostravel-portal-orignal.vercel.app", // production
