@@ -106,6 +106,7 @@ app.post("/send-email", async (req, res) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000) // 10s circuit breaker timeout
       });
 
       const data = await resp.json();
@@ -222,6 +223,7 @@ async function sendEmailViaSMTP2GO({ to, subject, body }) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10000) // 10s circuit breaker timeout
   });
   const data = await response.json();
   if (!data.data || (data.data.failed && data.data.failed > 0)) {
