@@ -135,13 +135,13 @@ app.post("/send-email", async (req, res) => {
         signal: AbortSignal.timeout(10000) // 10s circuit breaker timeout
       });
 
-      const data = await resp.json();
+      const respData = await resp.json();
 
-      if (!data.data || (data.data.failed && data.data.failed > 0)) {
-        throw new Error(`Failed to send to ${r.email}: ${JSON.stringify(data)}`);
+      if (!respData.data || (respData.data.failed && respData.data.failed > 0)) {
+        throw new Error(`Failed to send to ${r.email}: ${JSON.stringify(respData)}`);
       }
 
-      return data;
+      return respData;
     });
 
     await Promise.all(sendPromises);
