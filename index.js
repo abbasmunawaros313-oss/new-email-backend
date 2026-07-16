@@ -124,14 +124,20 @@ app.post("/send-email", async (req, res) => {
 });
 
 // ==========================================================================
-// FOLLOW-UP EMAIL SYSTEM (efficient: reads ONLY bookings that are due today)
+// FOLLOW-UP EMAIL SYSTEM
 //
-// Each booking carries a single `nextEmailDue` Firestore Timestamp = the date
-// of its next pending follow-up (or null / absent = nothing pending). The cron
-// queries `where nextEmailDue <= now`, so it reads a handful of due records
-// instead of the entire Processing/Approved history. Bookings with no field
-// (all historical records) are ignored — no backlog blast, no full scans.
+// The live portal writes emailTracking.followUpXScheduledDate (Timestamp or
+// ISO string) on Processing / Approved visa bookings. This backend scans all
+// Processing + Approved bookings, checks each follow-up date, and sends only
+// emails that are due AND within the 7-day grace window (to skip the old
+// backlog that was never emailed while the system was not running).
+//
+// Appointment-type bookings are excluded from follow-ups; the portal handles
+// that by simply not writing any followUpXScheduledDate on them.
 // ==========================================================================
+
+// Grace window: only send if the follow-up became due in the last N days.
+const GRACE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 // Parse a scheduled date whether saved as Firestore Timestamp OR ISO string.
 const toDateSafe = (val) => {
@@ -230,68 +236,57 @@ OS Travel and Tours Team`,
   return templates[emailType] || { subject: "", body: "" };
 }
 
-// Compute a booking's next pending follow-up date (Timestamp) or null.
-function computeNextEmailDue(t, status) {
-  const cand = [];
-  if (status === "Processing") {
-    if (!t.followUp1Sent) cand.push(toDateSafe(t.followUp1ScheduledDate));
-    if (!t.followUp2Sent) cand.push(toDateSafe(t.followUp2ScheduledDate));
-  } else if (status === "Approved") {
-    if (!t.followUp3Sent) cand.push(toDateSafe(t.followUp3ScheduledDate));
-    if (!t.followUp4Sent) cand.push(toDateSafe(t.followUp4ScheduledDate));
-    cand.push(toDateSafe(t.nextRecurringEmailDate)); // recurring is always pending
-  }
-  const valid = cand.filter(Boolean);
-  if (!valid.length) return null;
-  const min = valid.reduce((a, b) => (a < b ? a : b));
-  return admin.firestore.Timestamp.fromDate(min);
+// Check whether a follow-up is due and within the grace window.
+// Returns true if: not yet sent AND scheduled date is in the past AND within GRACE_WINDOW_MS.
+function isDueWithinGrace(dateVal, sent, now) {
+  if (sent) return false;
+  const d = toDateSafe(dateVal);
+  if (!d) return false;
+  if (d > now) return false; // not yet due
+  const age = now - d;
+  return age <= GRACE_WINDOW_MS; // skip very old backlog
 }
 
-// Process ONE due booking: send whatever is due, mark sent, recompute nextEmailDue.
-async function processDueBooking(docSnap, now, results) {
+// Process ONE booking: send whatever is due, mark sent.
+async function processBooking(docSnap, now, results) {
   const b = docSnap.data();
   const status = b.visaStatus;
-  const t = { ...(b.emailTracking || {}) };
+  const t = b.emailTracking || {};
+  const nowIso = now.toISOString();
   const updates = {};
-  const nowIso = new Date().toISOString();
 
-  // No recipient — clear the field so it's never re-scanned.
-  if (!b.email || b.email.trim() === "") {
-    await docSnap.ref.update({ nextEmailDue: null });
-    return;
-  }
-
-  const isDue = (dateVal, sent) => {
-    const d = toDateSafe(dateVal);
-    return !sent && d && d <= now;
-  };
+  // Skip if no recipient email
+  if (!b.email || b.email.trim() === "") return;
 
   const toSend = [];
+
   if (status === "Processing") {
-    if (isDue(t.followUp1ScheduledDate, t.followUp1Sent)) toSend.push("followUp1");
-    if (isDue(t.followUp2ScheduledDate, t.followUp2Sent)) toSend.push("followUp2");
+    if (isDueWithinGrace(t.followUp1ScheduledDate, t.followUp1Sent, now)) toSend.push("followUp1");
+    if (isDueWithinGrace(t.followUp2ScheduledDate, t.followUp2Sent, now)) toSend.push("followUp2");
   } else if (status === "Approved") {
-    if (isDue(t.followUp3ScheduledDate, t.followUp3Sent)) toSend.push("followUp3");
-    if (isDue(t.followUp4ScheduledDate, t.followUp4Sent)) toSend.push("followUp4");
-    const rec = toDateSafe(t.nextRecurringEmailDate);
-    if (rec && rec <= now) toSend.push("recurring");
+    if (isDueWithinGrace(t.followUp3ScheduledDate, t.followUp3Sent, now)) toSend.push("followUp3");
+    if (isDueWithinGrace(t.followUp4ScheduledDate, t.followUp4Sent, now)) toSend.push("followUp4");
+    // Recurring: use the same grace window logic
+    if (isDueWithinGrace(t.nextRecurringEmailDate, false, now)) toSend.push("recurring");
   }
+
+  if (toSend.length === 0) return;
 
   for (const type of toSend) {
     try {
       const { subject, body } = getEmailTemplate(type, b);
       await sendEmailViaSMTP2GO({ to: b.email, subject, body });
+
       if (type === "recurring") {
         const next = new Date(now);
         next.setMonth(next.getMonth() + 6);
-        t.nextRecurringEmailDate = next;
         updates["emailTracking.lastRecurringEmailDate"] = nowIso;
         updates["emailTracking.nextRecurringEmailDate"] = admin.firestore.Timestamp.fromDate(next);
       } else {
-        t[`${type}Sent`] = true;
         updates[`emailTracking.${type}Sent`] = true;
         updates[`emailTracking.${type}SentDate`] = nowIso;
       }
+
       results[type] = (results[type] || 0) + 1;
       console.log(`✅ Sent ${type} to ${b.email} (${docSnap.id})`);
     } catch (err) {
@@ -300,9 +295,26 @@ async function processDueBooking(docSnap, now, results) {
     }
   }
 
-  // Recompute the next pending date (or null) so this booking is only re-read when due again.
-  updates.nextEmailDue = computeNextEmailDue(t, status);
-  await docSnap.ref.update(updates);
+  if (Object.keys(updates).length > 0) {
+    await docSnap.ref.update(updates);
+  }
+}
+
+// Count pending follow-ups for one booking (read-only, same logic as processBooking).
+function countPendingForBooking(b, now) {
+  const status = b.visaStatus;
+  const t = b.emailTracking || {};
+  let count = 0;
+
+  if (status === "Processing") {
+    if (isDueWithinGrace(t.followUp1ScheduledDate, t.followUp1Sent, now)) count++;
+    if (isDueWithinGrace(t.followUp2ScheduledDate, t.followUp2Sent, now)) count++;
+  } else if (status === "Approved") {
+    if (isDueWithinGrace(t.followUp3ScheduledDate, t.followUp3Sent, now)) count++;
+    if (isDueWithinGrace(t.followUp4ScheduledDate, t.followUp4Sent, now)) count++;
+    if (isDueWithinGrace(t.nextRecurringEmailDate, false, now)) count++;
+  }
+  return count;
 }
 
 // Guard: block if Firebase isn't configured; require secret token if one is set.
@@ -319,30 +331,53 @@ function guardScheduled(req, res) {
   return true;
 }
 
+// ==========================================================================
 // CRON ENDPOINT — send all DUE follow-ups. Trigger daily (e.g. cron-job.org):
 //   GET /send-scheduled-emails?token=YOUR_CRON_SECRET
+//
+// Scans Processing + Approved bookings; sends follow-ups that:
+//   1. Have a scheduled date in the past
+//   2. Haven't been sent yet
+//   3. Became due within the last 7 days (grace window — skips old backlog)
+// ==========================================================================
 app.get("/send-scheduled-emails", async (req, res) => {
   if (!guardScheduled(req, res)) return;
   const startTime = Date.now();
+
   try {
     const now = new Date();
-    // EFFICIENT: only bookings whose next follow-up is due (tiny read set).
-    const dueSnap = await db.collection("bookings")
-      .where("nextEmailDue", "<=", admin.firestore.Timestamp.fromDate(now))
-      .get();
+
+    // Fetch all Processing and Approved visa bookings (2 small reads, ~2767 total docs).
+    const [processingSnap, approvedSnap] = await Promise.all([
+      db.collection("bookings").where("visaStatus", "==", "Processing").get(),
+      db.collection("bookings").where("visaStatus", "==", "Approved").get(),
+    ]);
+
+    const allDocs = [...processingSnap.docs, ...approvedSnap.docs];
+    console.log(`📋 Scanning ${allDocs.length} bookings (${processingSnap.size} Processing, ${approvedSnap.size} Approved)`);
 
     const results = {};
-    for (const docSnap of dueSnap.docs) {
-      await processDueBooking(docSnap, now, results); // sequential = gentle on SMTP; set is small
+    for (const docSnap of allDocs) {
+      await processBooking(docSnap, now, results);
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
     const totalSent = ["followUp1", "followUp2", "followUp3", "followUp4", "recurring"]
       .reduce((s, k) => s + (results[k] || 0), 0);
-    console.log(`📈 Cron done: ${dueSnap.size} due, ${totalSent} sent, ${results.failed || 0} failed, ${duration}s`);
+
+    console.log(`📈 Cron done: ${allDocs.length} scanned, ${totalSent} sent, ${results.failed || 0} failed, ${duration}s`);
     res.json({
       success: true,
-      summary: { due: dueSnap.size, totalSent, failed: results.failed || 0, breakdown: results, duration: `${duration}s` },
+      summary: {
+        scanned: allDocs.length,
+        processing: processingSnap.size,
+        approved: approvedSnap.size,
+        totalSent,
+        failed: results.failed || 0,
+        breakdown: results,
+        duration: `${duration}s`,
+        graceWindowDays: 7,
+      },
     });
   } catch (error) {
     console.error("❌ CRON ERROR:", error);
@@ -350,20 +385,50 @@ app.get("/send-scheduled-emails", async (req, res) => {
   }
 });
 
-// Read-only backlog check (efficient — counts only bookings due now).
+// ==========================================================================
+// READ-ONLY STATUS CHECK — counts pending follow-ups without sending anything.
+//   GET /check-email-status?token=YOUR_CRON_SECRET
+// ==========================================================================
 app.get("/check-email-status", async (req, res) => {
   if (!firebaseReady) {
     return res.status(503).json({ error: "Follow-ups disabled: Firebase not configured." });
   }
   try {
     const now = new Date();
-    const dueSnap = await db.collection("bookings")
-      .where("nextEmailDue", "<=", admin.firestore.Timestamp.fromDate(now))
-      .get();
+
+    const [processingSnap, approvedSnap] = await Promise.all([
+      db.collection("bookings").where("visaStatus", "==", "Processing").get(),
+      db.collection("bookings").where("visaStatus", "==", "Approved").get(),
+    ]);
+
+    const allDocs = [...processingSnap.docs, ...approvedSnap.docs];
+    let pendingCount = 0;
+    const breakdown = { followUp1: 0, followUp2: 0, followUp3: 0, followUp4: 0, recurring: 0 };
+
+    for (const docSnap of allDocs) {
+      const b = docSnap.data();
+      const status = b.visaStatus;
+      const t = b.emailTracking || {};
+
+      if (status === "Processing") {
+        if (isDueWithinGrace(t.followUp1ScheduledDate, t.followUp1Sent, now)) { breakdown.followUp1++; pendingCount++; }
+        if (isDueWithinGrace(t.followUp2ScheduledDate, t.followUp2Sent, now)) { breakdown.followUp2++; pendingCount++; }
+      } else if (status === "Approved") {
+        if (isDueWithinGrace(t.followUp3ScheduledDate, t.followUp3Sent, now)) { breakdown.followUp3++; pendingCount++; }
+        if (isDueWithinGrace(t.followUp4ScheduledDate, t.followUp4Sent, now)) { breakdown.followUp4++; pendingCount++; }
+        if (isDueWithinGrace(t.nextRecurringEmailDate, false, now)) { breakdown.recurring++; pendingCount++; }
+      }
+    }
+
     res.json({
       status: "healthy",
-      pendingDue: dueSnap.size,
-      note: "Counts only bookings with a follow-up due right now (efficient query, no full scan).",
+      scanned: allDocs.length,
+      processing: processingSnap.size,
+      approved: approvedSnap.size,
+      pendingDue: pendingCount,
+      breakdown,
+      graceWindowDays: 7,
+      note: "Counts follow-ups due in the last 7 days that haven't been sent yet.",
     });
   } catch (error) {
     res.status(500).json({ status: "error", error: error.message });
