@@ -1,2 +1,12 @@
-node_modules/ 
-.env 
+node_modules/
+.env
+
+# Local test / diagnostic scripts + rendered previews (not for production)
+preview/
+preview.mjs
+test-html-email.mjs
+check-confirmation-emails.mjs
+count-recent-sends.mjs
+create-test-booking.mjs
+delete-test-booking.mjs
+diagnose-processing.mjs

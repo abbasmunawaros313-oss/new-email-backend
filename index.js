@@ -3,6 +3,11 @@ import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
 import admin from "firebase-admin";
+import path from "path";
+import { fileURLToPath } from "url";
+import { renderEmail } from "./emailTemplates.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
@@ -26,6 +31,11 @@ app.use(cors({
 
 // ✅ JSON parser with larger payload
 app.use(express.json({ limit: "25mb" }));
+
+// ✅ Serve email template images (referenced by the HTML templates)
+app.use("/email-assets", express.static(path.join(__dirname, "email-assets"), {
+  maxAge: "30d",
+}));
 
 // ==========================================================================
 // FIREBASE ADMIN — FAIL-SOFT INITIALIZATION
@@ -72,22 +82,38 @@ app.get("/", (req, res) =>
 // ==========================================================================
 app.post("/send-email", async (req, res) => {
   try {
-    const { subject, body, recipients, file } = req.body;
+    const { subject, body, recipients, file, template, data } = req.body;
 
-    if (!subject || !body || !recipients?.length) {
+    // Template mode (new, branded HTML) OR legacy body mode — either works.
+    if (!recipients?.length || (!template && (!subject || !body))) {
       return res.status(400).json({ error: "Missing required fields" });
+    }
+    if (template && !renderEmail(template, {})) {
+      return res.status(400).json({ error: `Unknown email template: ${template}` });
     }
 
     const sendPromises = recipients.map(async r => {
-      const resolvedBody = body.replace("{{name}}", r.name || "Customer");
+      let subj, textBody, htmlBody;
+      if (template) {
+        // Per-recipient render so {{name}} etc. is correct even for bulk sends.
+        const rendered = renderEmail(template, { ...(data || {}), name: (data && data.name) || r.name });
+        subj = subject || rendered.subject;
+        textBody = rendered.text;
+        htmlBody = rendered.html;
+      } else {
+        const resolvedBody = body.replace("{{name}}", r.name || "Customer");
+        subj = subject;
+        textBody = resolvedBody;          // plain-text fallback
+        htmlBody = toHtml(resolvedBody);  // legacy branded HTML
+      }
       const payload = {
         api_key: process.env.SMTP_API_KEY,
         to: r.email,
         sender: `"O.S Travel & Tours" <${process.env.SENDER_EMAIL}>`,
           sender_name: "O.S Travel & Tours",
-        subject,
-        text_body: resolvedBody,          // plain-text fallback
-        html_body: toHtml(resolvedBody),  // rich HTML with emojis + branding
+        subject: subj,
+        text_body: textBody,
+        html_body: htmlBody,
       };
 
 
@@ -209,15 +235,15 @@ function toHtml(text) {
 </html>`;
 }
 
-async function sendEmailViaSMTP2GO({ to, subject, body }) {
+async function sendEmailViaSMTP2GO({ to, subject, body, html, text }) {
   const payload = {
     api_key: process.env.SMTP_API_KEY,
     to,
     sender: `"O.S Travel & Tours" <${process.env.SENDER_EMAIL}>`,
     sender_name: "O.S Travel & Tours",
     subject,
-    text_body: body,       // plain-text fallback (always present)
-    html_body: toHtml(body), // rich HTML (emojis, formatting — used by modern clients)
+    text_body: text || body,                 // plain-text fallback (always present)
+    html_body: html || toHtml(body || ""),   // branded template HTML, else legacy wrapper
   };
   const response = await fetch("https://api.smtp2go.com/v3/email/send", {
     method: "POST",
@@ -232,72 +258,20 @@ async function sendEmailViaSMTP2GO({ to, subject, body }) {
   return data;
 }
 
+// Maps the follow-up type to a branded HTML template (see emailTemplates.js).
 function getEmailTemplate(emailType, booking) {
-  const templates = {
-    followUp1: {
-      subject: "📋 Your Visa Application is Being Processed - OS Travel",
-      body: `Dear ${booking.fullName},
-Great news! Your visa application for ${booking.country} is currently being processed. 🔄
-We're working diligently to ensure everything is in order. While we handle your visa, let us help you plan the rest of your journey!
-🎫 FLIGHT TICKETING — Best prices guaranteed, flexible options, multiple airlines.
-🏨 HOTEL RESERVATIONS — Budget to luxury, prime locations, special rates.
-🕋 UMRAH PACKAGES — Visa assistance, hotels near Haram, ground transport.
-📞 Contact us anytime: 0333-5542877 | ostravelisb@gmail.com | https://www.ostravel.pk/
-Best regards,
-OS Travel and Tours Team`,
-    },
-    followUp2: {
-      subject: "⏳ Visa Processing Update - Plan Your Trip with OS Travel",
-      body: `Dear ${booking.fullName},
-Your visa application for ${booking.country} is still being processed. We appreciate your patience! ⏳
-While you wait, plan ahead and save:
-✈️ EARLY BIRD FLIGHT DEALS — lock in best prices, flexible dates.
-🏨 ACCOMMODATION PLANNING — early-booking discounts, free cancellation.
-🏥 TRAVEL INSURANCE — medical coverage, trip protection, 24/7 assistance.
-📞 Ready to plan? 0333-5542877 | ostravelisb@gmail.com | https://www.ostravel.pk/
-Best regards,
-OS Travel and Tours Team`,
-    },
-    followUp3: {
-      subject: "🎉 Visa Approved! Complete Your Travel Plans - OS Travel",
-      body: `Dear ${booking.fullName},
-Congratulations! Your visa for ${booking.country} has been approved! 🎉
-Now let's finalize your travel arrangements:
-🎫 FLIGHT BOOKING — competitive prices, flexible payment plans.
-🏨 HOTEL PACKAGES — special rates, prime locations, free cancellation.
-🕋 UMRAH SERVICES — complete solutions with experienced guides.
-🏥 TRAVEL INSURANCE — comprehensive coverage & 24/7 assistance.
-📞 Book now: 0333-5542877 | ostravelisb@gmail.com | https://www.ostravel.pk/
-Safe travels!
-OS Travel and Tours Team`,
-    },
-    followUp4: {
-      subject: "🌍 Your Journey Awaits - Exclusive Travel Services | OS Travel",
-      body: `Dear ${booking.fullName},
-We hope you're enjoying your approved visa for ${booking.country}! 🌍
-As your trusted travel partner, we're here for every journey:
-✈️ INTERNATIONAL FLIGHTS — worldwide, best-price guarantee, 24/7 support.
-🏨 GLOBAL HOTELS — 500,000+ properties, instant confirmation.
-🕋 UMRAH & HAJJ PACKAGES — premium accommodations, expert guidance.
-🏥 TRAVEL INSURANCE — medical coverage, evacuation, baggage protection.
-🎁 Exclusive discounts for our valued customers!
-📞 Contact us: 0333-5542877 | ostravelisb@gmail.com | https://www.ostravel.pk/
-Best regards,
-OS Travel and Tours Team`,
-    },
-    recurring: {
-      subject: "🌟 Planning Your Next Adventure? We're Here to Help!",
-      body: `Dear ${booking.fullName},
-It's been a while since we helped you with your ${booking.country} visa! We hope your trip was amazing! 🎉
-🌍 PLANNING YOUR NEXT JOURNEY? OS Travel and Tours is ready to assist:
-✈️ Visa Services • 🎫 Flight Ticketing • 🕋 Umrah Packages • 🏨 Hotel Bookings • 🏥 Travel Insurance
-🎁 Returning-customer benefits: priority processing, exclusive discounts, dedicated support.
-📞 Let's plan: 0333-5542877 | ostravelisb@gmail.com | https://www.ostravel.pk/
-Best regards,
-OS Travel and Tours Team`,
-    },
+  const templateFor = {
+    followUp1: "followUp1",
+    followUp2: "followUp2",
+    followUp3: "visaApproved", // "your visa is approved!" celebration
+    followUp4: "followUp4",
+    recurring: "recurring",
   };
-  return templates[emailType] || { subject: "", body: "" };
+  const tpl = templateFor[emailType];
+  const data = { name: booking.fullName, country: booking.country };
+  const rendered = tpl ? renderEmail(tpl, data) : null;
+  if (!rendered) return { subject: "", body: "", html: "", text: "" };
+  return { subject: rendered.subject, html: rendered.html, text: rendered.text, body: rendered.text };
 }
 
 // Check whether a follow-up is due and within the grace window.
@@ -338,8 +312,8 @@ async function processBooking(docSnap, now, results) {
 
   for (const type of toSend) {
     try {
-      const { subject, body } = getEmailTemplate(type, b);
-      await sendEmailViaSMTP2GO({ to: b.email, subject, body });
+      const { subject, html, text } = getEmailTemplate(type, b);
+      await sendEmailViaSMTP2GO({ to: b.email, subject, html, text });
 
       if (type === "recurring") {
         const next = new Date(now);
