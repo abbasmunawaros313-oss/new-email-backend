@@ -3,8 +3,18 @@ import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
 import admin from "firebase-admin";
+import compression from "compression";
 
 const app = express();
+
+// 01: Compress API responses in transit
+app.use(compression({
+  threshold: 0,
+  filter: (req, res) => {
+    if (req.headers["x-no-compression"]) return false;
+    return compression.filter(req, res);
+  }
+}));
 
 const allowedOrigins = [
   "https://ostravel-portal-orignal.vercel.app", // production
@@ -83,8 +93,8 @@ app.post("/send-email", async (req, res) => {
       const payload = {
         api_key: process.env.SMTP_API_KEY,
         to: r.email,
-        sender: process.env.SENDER_EMAIL,
-          sender_name: "OS Travel and Tours",
+        sender: `"O.S Travel & Tours" <${process.env.SENDER_EMAIL}>`,
+          sender_name: "O.S Travel & Tours",
         subject,
         text_body: resolvedBody,          // plain-text fallback
         html_body: toHtml(resolvedBody),  // rich HTML with emojis + branding
@@ -213,8 +223,8 @@ async function sendEmailViaSMTP2GO({ to, subject, body }) {
   const payload = {
     api_key: process.env.SMTP_API_KEY,
     to,
-    sender: process.env.SENDER_EMAIL,
-    sender_name: "OS Travel and Tours",
+    sender: `"O.S Travel & Tours" <${process.env.SENDER_EMAIL}>`,
+    sender_name: "O.S Travel & Tours",
     subject,
     text_body: body,       // plain-text fallback (always present)
     html_body: toHtml(body), // rich HTML (emojis, formatting — used by modern clients)
