@@ -356,7 +356,7 @@ app.get("/send-scheduled-emails", async (req, res) => {
     const allDocs = [...processingSnap.docs, ...approvedSnap.docs];
     console.log(`📋 Scanning ${allDocs.length} bookings (${processingSnap.size} Processing, ${approvedSnap.size} Approved)`);
 
-    const results = {};
+    const results = { followUp1: 0, followUp2: 0, followUp3: 0, followUp4: 0, recurring: 0, failed: 0 };
     for (const docSnap of allDocs) {
       await processBooking(docSnap, now, results);
     }
