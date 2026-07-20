@@ -7,7 +7,12 @@
 const ASSET_BASE =
   process.env.ASSET_BASE ||
   "https://new-email-backend-production.up.railway.app/email-assets";
-const SITE = "https://www.ostravel.pk";
+const SITE = "https://www.ostravels.com";
+// Dynamic links to the real ostravels.com pages (pattern: /visa/{country}-visa/).
+const slugify = (s) => String(s || "").toLowerCase().trim().replace(/[()]/g, "").replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+const visaUrl = (country) => (country ? `${SITE}/visa/${slugify(country)}-visa/` : SITE);
+const UMRAH_URL = `${SITE}/umrah-package/umrah-package/`;
+const CONTACT_URL = `${SITE}/contact-2/`;
 
 // ---- helpers --------------------------------------------------------------
 const esc = (v) =>
@@ -130,7 +135,7 @@ const wrap = (preheader, bodyRows) => `<!DOCTYPE html>
 const SVC_FLIGHT = { title: "Flights", desc: "Best fares, flexible options.", link: "Explore", url: SITE };
 const SVC_HOTEL = { title: "Hotels", desc: "Prime spots, special rates.", link: "Find stays", url: SITE };
 const SVC_INSURANCE = { title: "Travel Insurance", desc: "Total peace of mind.", link: "Get covered", url: SITE };
-const SVC_UMRAH = { title: "Umrah Packages", desc: "Hotels near the Haram, full support.", link: "See packages", url: SITE };
+const SVC_UMRAH = { title: "Umrah Packages", desc: "Hotels near the Haram, full support.", link: "See packages", url: UMRAH_URL };
 
 // ==========================================================================
 // TEMPLATES  — each returns { subject, html, text }
@@ -150,7 +155,7 @@ const templates = {
       ]) +
       crossHead("While we handle your visa") +
       services([SVC_FLIGHT, SVC_HOTEL, SVC_INSURANCE]) +
-      ctaBand("Questions about your application?", "Talk to your agent")),
+      ctaBand("Questions about your application?", "Talk to your agent", CONTACT_URL)),
     text: `Dear ${d.name}, we have received your visa documents for ${d.country} and your application is being processed. — O.S Travel & Tours, 0333-5542877, www.ostravel.pk`,
   }),
 
@@ -283,7 +288,7 @@ const templates = {
         `Your visa for <b>${esc(d.country)}</b> is still being processed — we appreciate your patience. Smart travellers plan while they wait, and get ahead of the rush.`,
       ]) +
       crossHead("Get inspired while you wait") +
-      destinations([{ img: "thailand", name: "Thailand" }, { img: "singapore", name: "Singapore" }, { img: "dubai", name: "Dubai" }]) +
+      destinations([{ img: "thailand", name: "Thailand", url: visaUrl("Thailand") }, { img: "singapore", name: "Singapore", url: visaUrl("Singapore") }, { img: "dubai", name: "Dubai", url: visaUrl("Dubai") }]) +
       services([{ title: "Early-Bird Flights", desc: "Lock in fares, stay flexible.", link: "View flights" }, SVC_HOTEL, SVC_INSURANCE]) +
       ctaBand("Ready to plan your trip?", "Start planning with an expert", SITE, "#7a1440")),
     text: `Dear ${d.name}, your ${d.country} visa is still processing. Plan ahead with early-bird flights, hotels and insurance. — O.S Travel & Tours`,
@@ -297,7 +302,7 @@ const templates = {
       greeting(d.name, [
         `We hope you're making the most of your <b>${esc(d.country)}</b> visa! As your trusted partner, we're ready whenever the next trip calls.`,
       ]) +
-      destinations([{ img: "dubai", name: "UAE" }, { img: "istanbul", name: "Türkiye" }, { img: "maldives", name: "Maldives" }]) +
+      destinations([{ img: "dubai", name: "UAE", url: visaUrl("UAE") }, { img: "istanbul", name: "Türkiye", url: visaUrl("Turkey") }, { img: "maldives", name: "Maldives", url: visaUrl("Maldives") }]) +
       crossHead("All your travel, one roof") +
       services([SVC_FLIGHT, SVC_HOTEL, SVC_UMRAH, SVC_INSURANCE]) +
       ctaBand("One call handles your whole trip.", "Get in touch", SITE, "#324a64")),
@@ -312,7 +317,7 @@ const templates = {
       greeting(d.name, [
         `It's been a while since we arranged your <b>${esc(d.country)}</b> visa — we hope the trip was unforgettable! Wherever you're dreaming of next, let's make it effortless. As a returning client, you'll always have our priority attention.`,
       ]) +
-      destinations([{ img: "istanbul", name: "Türkiye" }, { img: "thailand", name: "Thailand" }, { img: "dubai", name: "Dubai" }]) +
+      destinations([{ img: "istanbul", name: "Türkiye", url: visaUrl("Turkey") }, { img: "thailand", name: "Thailand", url: visaUrl("Thailand") }, { img: "dubai", name: "Dubai", url: visaUrl("Dubai") }]) +
       ctaBand("Let's plan your next journey.", "Start my next trip", SITE, "#0B1D38", "Tell us where you're dreaming of — we'll handle the rest.")),
     text: `Dear ${d.name}, ready for your next adventure? Let's plan your next trip. — O.S Travel & Tours`,
   }),
@@ -326,7 +331,7 @@ const templates = {
         `Greetings from O.S Travel &amp; Tours! We make international travel easier, more affordable and worry-free — guiding you from visa to journey with trusted, personal support at every step.`,
       ]) +
       crossHead("Explore our top destinations") +
-      destinations([{ img: "malaysia", name: "Malaysia" }, { img: "thailand", name: "Thailand" }, { img: "singapore", name: "Singapore" }, { img: "indonesia", name: "Indonesia" }]) +
+      destinations([{ img: "malaysia", name: "Malaysia", url: visaUrl("Malaysia") }, { img: "thailand", name: "Thailand", url: visaUrl("Thailand") }, { img: "singapore", name: "Singapore", url: visaUrl("Singapore") }, { img: "indonesia", name: "Indonesia", url: visaUrl("Indonesia") }]) +
       crossHead("All your travel, one roof") +
       services([{ title: "Airline Ticketing", desc: "Domestic & international at trusted rates.", link: "Enquire" }, SVC_INSURANCE, SVC_UMRAH]) +
       ctaBand("Save time, skip the hassle.", "Plan your journey today")),
