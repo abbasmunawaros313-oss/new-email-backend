@@ -38,9 +38,9 @@ const header = () => `
 const footer = () => `
   <tr><td style="background:#08152b;padding:24px 40px;">
     <div style="color:#B7C6D8;font-size:12px;line-height:1.9;">
-      0333&nbsp;5542877<br/>
-      <a href="${SITE}" style="color:#C7D5E6;text-decoration:none;">www.ostravel.pk</a> &nbsp;&middot;&nbsp; www.ostravels.com<br/>
-      Office No.1, 2nd Floor, Al-Hafeez Mall, G-11 Markaz, Islamabad
+      0333&nbsp;5542877 &nbsp;&middot;&nbsp; 051&nbsp;2805570<br/>
+      <a href="${SITE}" style="color:#C7D5E6;text-decoration:none;">www.ostravels.com</a><br/>
+      Office #3, Aaly Plaza, Fazal-e-Haq Rd, Blue Area, Islamabad
     </div>
     <div style="border-top:1px solid #182f4d;margin-top:16px;padding-top:14px;color:#61748c;font-size:10.5px;text-align:center;letter-spacing:1px;">
       &copy; 2026 O.S Travel &amp; Tours. All rights reserved.
@@ -343,10 +343,19 @@ const templates = {
  * Render an email template.
  * @returns { subject, html, text } or null if template unknown.
  */
+// Convert every non-ASCII char (em-dash —, middot ·, star ✦, accents, Arabic…)
+// to an HTML numeric entity so it renders correctly in ALL email clients,
+// regardless of how the charset is negotiated in transit (fixes the "�" issue).
+const encodeNonAscii = (s) =>
+  Array.from(String(s == null ? "" : s))
+    .map((ch) => { const c = ch.codePointAt(0); return c > 127 ? `&#${c};` : ch; })
+    .join("");
+
 export function renderEmail(templateType, data = {}) {
   const fn = templates[templateType];
   if (!fn) return null;
-  return fn(data);
+  const r = fn(data);
+  return { ...r, html: encodeNonAscii(r.html) };
 }
 
 export const TEMPLATE_NAMES = Object.keys(templates);
