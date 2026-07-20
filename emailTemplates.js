@@ -9,11 +9,37 @@ const ASSET_BASE =
   "https://new-email-backend-production.up.railway.app/email-assets";
 const SITE = "https://www.ostravels.com";
 
-// ---- dynamic links to real ostravels.com pages -----------------------------
-const slugify = (s) => String(s || "").toLowerCase().trim().replace(/[()]/g, "").replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-const visaUrl = (c) => (c ? `${SITE}/visa/${slugify(c)}-visa/` : SITE);
-const UMRAH_URL = `${SITE}/umrah-package/umrah-package/`;
-const CONTACT_URL = `${SITE}/contact-2/`;
+// ---- dynamic links to REAL ostravels.com routes (verified vs sitemap.xml) ---
+// Only real pages are linked; unknown countries fall back to the /visa/ index
+// (a real page) so a link can never 404 / hit the SPA "not found" view.
+const abs = (p) => `${SITE}${p}`;
+const VISA_PAGES = {
+  "azerbaijan": "/visa/azerbaijan-visa/", "cambodia": "/visa/cambodia-visa/", "china": "/visa/china-visa/",
+  "egypt": "/visa/egypt-visa/", "hong kong": "/visa/hongkong-visa/", "hongkong": "/visa/hongkong-visa/",
+  "indonesia": "/visa/indonesia-visa/", "kazakhstan": "/visa/kazakhstan/", "kyrgyzstan": "/visa/kyrgyzstan-visa/",
+  "malaysia": "/visa/malaysia-visa/", "nepal": "/visa/nepal/", "philippines": "/visa/philippine-visa/", "philippine": "/visa/philippine-visa/",
+  "saudi arabia": "/visa/saudi-arabia-visa/", "saudi": "/visa/saudi-arabia-visa/", "singapore": "/visa/singapore-visa/",
+  "sri lanka": "/visa/sri-lanka-visa/", "tajikistan": "/visa/tajikistan-visa/", "thailand": "/visa/thailand-visa/",
+  "turkey": "/visa/turkey-visa/", "türkiye": "/visa/turkey-visa/", "turkiye": "/visa/turkey-visa/",
+  "uzbekistan": "/visa/uzbekistan-visa/", "vietnam": "/visa/vietnam-visa/",
+  // File-processing / Schengen family
+  "australia": "/schengen-visa-file-processing/australia-visa/", "belgium": "/schengen-visa-file-processing/belgium-visa/",
+  "canada": "/schengen-visa-file-processing/canada-visa/", "czech republic": "/schengen-visa-file-processing/czech-republic-visa/",
+  "denmark": "/schengen-visa-file-processing/denmark-visa/", "france": "/schengen-visa-file-processing/france-visa/",
+  "germany": "/schengen-visa-file-processing/germany-visa/", "greece": "/schengen-visa-file-processing/greece-visa/",
+  "hungary": "/schengen-visa-file-processing/hungary-visa/", "italy": "/schengen-visa-file-processing/italy-visa/",
+  "netherlands": "/schengen-visa-file-processing/netherlands-visa/", "norway": "/schengen-visa-file-processing/norway-visa/",
+  "poland": "/schengen-visa-file-processing/poland-visa/", "portugal": "/schengen-visa-file-processing/portugal-visa/",
+  "spain": "/schengen-visa-file-processing/spain-visa/", "sweden": "/schengen-visa-file-processing/sweden-visa/",
+  "switzerland": "/schengen-visa-file-processing/switzerland-visa/",
+  "uk": "/schengen-visa-file-processing/united-kingdom-uk-visa/", "united kingdom": "/schengen-visa-file-processing/united-kingdom-uk-visa/",
+  "usa": "/schengen-visa-file-processing/united-states-usa-visa/", "united states": "/schengen-visa-file-processing/united-states-usa-visa/", "america": "/schengen-visa-file-processing/united-states-usa-visa/",
+};
+const visaUrl = (c) => { if (!c) return SITE; const k = String(c).toLowerCase().trim(); return abs(VISA_PAGES[k] || "/visa/"); };
+const SCHENGEN_URL = abs("/schengen-visa-file-processing/");
+const TICKETS_URL = abs("/air-ticketing/");
+const CONTACT_URL = abs("/contact-2/");
+const UMRAH_URL = CONTACT_URL; // site has no dedicated Umrah route — route to contact
 
 // ---- helpers ---------------------------------------------------------------
 const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -184,7 +210,7 @@ const templates = {
       greeting(d.name, ["Thank you for choosing O.S Travel &amp; Tours. We've received everything and begun processing. Your details on record:"]) +
       detail([["Applicant", d.name || "—"], ["Passport No.", d.passport || "—"], ["Destination", d.country || "—"], ["Visa Type", d.visaType || "—"], ["Reference No.", d.reference || "OS-2026"], ["Submitted", d.date || "—"]]) +
       sectionLabel("Get a head start", "Plan while you wait") +
-      feature("ic-flights", "Smart move", "Reserve flights now, pay later", "Lock today's fare — confirm once your visa is approved.", "View fares", SITE) +
+      feature("ic-flights", "Smart move", "Reserve flights now, pay later", "Lock today's fare — confirm once your visa is approved.", "View fares", TICKETS_URL) +
       cards([{ icon: "ic-hotel", t: "Hotels", d: "Free-cancellation stays" }, { icon: "ic-insurance", t: "Insurance", d: "Often required for the visa" }, { icon: "ic-umrah", t: "Umrah", d: "Ask about packages" }], false) +
       ctaBand("Questions about your application?", "Talk to your agent", CONTACT_URL)),
     text: `Dear ${d.name}, we've received your ${d.country} visa documents and begun processing. — O.S Travel & Tours, 0333-5542877, ostravels.com`,
@@ -198,7 +224,7 @@ const templates = {
       greeting(d.name, ["Wonderful news — your visa has been approved and is ready. Here are your approval details on record:"]) +
       detail([["Applicant", d.name || "—"], ["Destination", d.country || "—"], ["Visa Type", d.visaType || "Tourism"], ["Validity", d.validity || "90 days from issue"], ["Reference No.", d.reference || "OS-2026"]]) +
       sectionLabel("Your next step", "Let's get you there") +
-      feature("ic-flights", "Step 1 · Book now", `Book your flight to ${esc(d.country)}`, "Best fares while your visa is fresh — flexible dates, trusted airlines.", "Search flights", visaUrl(d.country)) +
+      feature("ic-flights", "Step 1 · Book now", `Book your flight to ${esc(d.country)}`, "Best fares while your visa is fresh — flexible dates, trusted airlines.", "Search flights", TICKETS_URL) +
       hotelShowcase("resort", `Handpicked stays in ${esc(d.country)}`, "From city towers to resort escapes — free cancellation.", SITE) +
       cards([{ icon: "ic-insurance", t: "Insurance", d: "From a few rupees/day" }, { icon: "ic-transfers", t: "Transfers", d: "Airport pick-up & SIM" }, { icon: "ic-tours", t: "Tours", d: "Top experiences" }], false) +
       ctaBand("Ready for takeoff?", "Complete my travel plans", SITE, "Let's turn your approval into a fully booked trip.")),
@@ -213,7 +239,7 @@ const templates = {
       greeting(d.name, ["Please keep the details below handy for your visit."]) +
       detail([["Country", d.country || "—"], ["Date & Time", d.appointmentDate || "—"], ["Location", d.location || "—"]]) +
       sectionLabel("Get trip-ready", "Plan ahead") +
-      feature("ic-flights", "Smart move", "Book flights & insurance", "Line up your trip so you're ready the moment your visa is stamped.", "Explore", SITE) +
+      feature("ic-flights", "Smart move", "Book flights & insurance", "Line up your trip so you're ready the moment your visa is stamped.", "Explore", TICKETS_URL) +
       ctaBand("Need to reschedule or ask something?", "Contact your agent", CONTACT_URL)),
     text: `Dear ${d.name}, your ${d.country} visa appointment is set: ${d.appointmentDate}, ${d.location}. — O.S Travel & Tours`,
   }),
@@ -241,7 +267,7 @@ const templates = {
       detail([["Package", d.package || "—"], ["Departure", d.departure || "—"], ["Includes", d.includes || "Visa · Hotels · Transport"]]) +
       `<tr><td style="padding:24px 40px 0;text-align:center;"><div style="font-family:${SERIF};font-style:italic;font-size:19px;color:${GOLD};">May Allah accept your Umrah and ibadah.</div></td></tr>` +
       sectionLabel("Complete your pilgrimage", "Travel essentials") +
-      feature("ic-flights", "Recommended", "Flights to Jeddah / Madinah", "Best-value fares timed to your package dates.", "View flights", SITE) +
+      feature("ic-flights", "Recommended", "Flights to Jeddah / Madinah", "Best-value fares timed to your package dates.", "View flights", TICKETS_URL) +
       cards([{ icon: "ic-insurance", t: "Insurance", d: "Peace of mind for family" }, { icon: "ic-tours", t: "Ziyarat", d: "Guided historical tours" }, { icon: "ic-transfers", t: "Transport", d: "Haram-to-hotel shuttles" }], false) +
       ctaBand("Everything for your pilgrimage", "Speak with us", UMRAH_URL)),
     text: `Dear ${d.name}, your Umrah package (${d.package}) is confirmed. May Allah accept your Umrah. — O.S Travel & Tours`,
@@ -255,7 +281,7 @@ const templates = {
       greeting(d.name, ["Your travel insurance request has been successfully filed with O.S Travel &amp; Tours. Coverage details:"]) +
       detail([["Insured", d.name || "—"], ["Insurer", d.company || "—"], ["Destination", d.destination || "—"], ["Duration", d.days ? `${d.days} Days` : "—"], ["Effective", d.effectiveDate || "—"]]) +
       sectionLabel("The rest of your trip", "Let's complete it") +
-      feature("ic-flights", "Next", `Book your flights to ${esc(d.destination)}`, "Match your journey to your cover dates with the best fares.", "Search flights", visaUrl(d.destination)) +
+      feature("ic-flights", "Next", `Book your flights to ${esc(d.destination)}`, "Match your journey to your cover dates with the best fares.", "Search flights", TICKETS_URL) +
       cards([{ icon: "ic-visa", t: "Visa", d: "Need the visa too?" }, { icon: "ic-hotel", t: "Hotels", d: "Stays worldwide" }, { icon: "ic-tours", t: "Tours", d: "Explore with confidence" }], false) +
       ctaBand("One partner for the whole trip", "Plan with OS", SITE)),
     text: `Dear ${d.name}, your travel insurance for ${d.destination} (${d.days} days) is filed. — O.S Travel & Tours`,
@@ -268,7 +294,7 @@ const templates = {
       hero("airport-gate") +
       headline("Update · Day 2", "Your visa is <i>in motion</i>", `Your <b style="color:${INK}">${esc(d.country)}</b> application is being processed — everything's in order.`) +
       greeting(d.name, ["Great news — your visa is progressing well. While our team handles it, get a head start on the rest of your trip."]) +
-      feature("ic-flights", "Smart move", "Reserve flights now, pay later", "Lock today's fare — confirm the moment your visa is approved.", "View fares", SITE) +
+      feature("ic-flights", "Smart move", "Reserve flights now, pay later", "Lock today's fare — confirm the moment your visa is approved.", "View fares", TICKETS_URL) +
       cards([{ icon: "ic-hotel", t: "Hotels", d: "Free-cancellation stays" }, { icon: "ic-insurance", t: "Insurance", d: "Often required" }, { icon: "ic-umrah", t: "Umrah", d: "Ask about packages" }], false) +
       ctaBand("We'll keep you posted", "Explore our services", SITE, "You'll get an email the moment your status changes.")),
     text: `Dear ${d.name}, your ${d.country} visa is being processed. Plan your trip while you wait. — O.S Travel & Tours`,
@@ -283,7 +309,7 @@ const templates = {
       sectionLabel("Get inspired", "Where to next") +
       destinations([{ img: "malaysia", name: "Malaysia", cc: "my", s: "Early-bird", url: visaUrl("Malaysia") }, { img: "thailand", name: "Thailand", cc: "th", s: "Beaches", url: visaUrl("Thailand") }, { img: "singapore", name: "Singapore", cc: "sg", s: "Family", url: visaUrl("Singapore") }, { img: "burj-arab", name: "Dubai", cc: "ae", s: "Luxury", url: visaUrl("Dubai") }]) +
       sectionLabel("Featured visa", "Schengen — one visa, 27 countries") +
-      hotelShowcase("europe", "Dreaming of Europe?", "One Schengen visa opens France, Italy, Spain, Switzerland & more.", SITE) +
+      hotelShowcase("europe", "Dreaming of Europe?", "One Schengen visa opens France, Italy, Spain, Switzerland & more.", SCHENGEN_URL) +
       ctaBand("Ready to plan your trip?", "Start planning", SITE)),
     text: `Dear ${d.name}, your ${d.country} visa is still processing. Plan ahead with early-bird flights, hotels and insurance. — O.S Travel & Tours`,
   }),
@@ -295,7 +321,7 @@ const templates = {
       headline("Your trusted travel partner", "Wherever you're <i>headed next</i>", "We hope your last trip was wonderful. Whenever the next journey calls, we're one message away.") +
       greeting(d.name, ["Fresh ideas for your next adventure:"]) +
       sectionLabel("Popular right now", "Explore the world") +
-      destinations([{ img: "japan", name: "Japan", cc: "jp", s: "Visit", url: visaUrl("Japan") }, { img: "usa", name: "USA", cc: "us", s: "Visit & study", url: visaUrl("USA") }, { img: "istanbul", name: "Türkiye", cc: "tr", s: "e-Visa", url: visaUrl("Turkey") }, { img: "europe", name: "Europe", cc: "eu", s: "Schengen", url: SITE }]) +
+      destinations([{ img: "japan", name: "Japan", cc: "jp", s: "Visit", url: visaUrl("Japan") }, { img: "usa", name: "USA", cc: "us", s: "Visit & study", url: visaUrl("USA") }, { img: "istanbul", name: "Türkiye", cc: "tr", s: "e-Visa", url: visaUrl("Turkey") }, { img: "europe", name: "Europe", cc: "eu", s: "Schengen", url: SCHENGEN_URL }]) +
       sectionLabel("All your travel, one roof") + SVC3 +
       ctaBand("One call handles your whole trip", "Plan my next journey", SITE)),
     text: `Dear ${d.name}, wherever you're headed next — flights, hotels, umrah, insurance — we've got you. — O.S Travel & Tours`,
@@ -308,7 +334,7 @@ const templates = {
       headline("We've missed you", "Ready for your <i>next adventure?</i>", "It's been a while! Wherever you're dreaming of next, we'll make it effortless — with priority care for returning clients.") +
       greeting(d.name, ["Where to this time?"]) +
       sectionLabel("Fresh ideas", "Your next trip awaits") +
-      destinations([{ img: "istanbul", name: "Türkiye", cc: "tr", s: "Visa + tours", url: visaUrl("Turkey") }, { img: "thailand", name: "Thailand", cc: "th", s: "Beaches", url: visaUrl("Thailand") }, { img: "burj-arab", name: "Dubai", cc: "ae", s: "City breaks", url: visaUrl("Dubai") }, { img: "europe", name: "Europe", cc: "eu", s: "Schengen", url: SITE }]) +
+      destinations([{ img: "istanbul", name: "Türkiye", cc: "tr", s: "Visa + tours", url: visaUrl("Turkey") }, { img: "thailand", name: "Thailand", cc: "th", s: "Beaches", url: visaUrl("Thailand") }, { img: "burj-arab", name: "Dubai", cc: "ae", s: "City breaks", url: visaUrl("Dubai") }, { img: "europe", name: "Europe", cc: "eu", s: "Schengen", url: SCHENGEN_URL }]) +
       ctaBand("Let's plan your next journey", "Start my next trip", SITE, "Tell us where you're dreaming of — we'll handle the rest.")),
     text: `Dear ${d.name}, ready for your next adventure? Let's plan your next trip. — O.S Travel & Tours`,
   }),
@@ -323,7 +349,7 @@ const templates = {
       destinations([{ img: "malaysia", name: "Malaysia", cc: "my", url: visaUrl("Malaysia") }, { img: "thailand", name: "Thailand", cc: "th", url: visaUrl("Thailand") }, { img: "singapore", name: "Singapore", cc: "sg", url: visaUrl("Singapore") }, { img: "indonesia", name: "Indonesia", cc: "id", url: visaUrl("Indonesia") }]) +
       destinations([{ img: "japan", name: "Japan", cc: "jp", url: visaUrl("Japan") }, { img: "usa", name: "USA", cc: "us", url: visaUrl("USA") }, { img: "istanbul", name: "Türkiye", cc: "tr", url: visaUrl("Turkey") }, { img: "madinah", name: "Saudi Arabia", cc: "sa", url: visaUrl("Saudi Arabia") }]) +
       sectionLabel("Featured visa", "Schengen — one visa, 27 countries") +
-      hotelShowcase("europe", "Explore all of Europe on one visa", "France, Italy, Spain, Switzerland, Greece & more — we handle the paperwork.", SITE) +
+      hotelShowcase("europe", "Explore all of Europe on one visa", "France, Italy, Spain, Switzerland, Greece & more — we handle the paperwork.", SCHENGEN_URL) +
       sectionLabel("All your travel, one roof") + SVC3 +
       sectionLabel("Where you'll stay", "Handpicked world-class hotels") +
       destinations([{ img: "burj-arab", name: "Dubai", s: "Burj Al Arab", url: SITE }, { img: "singapore", name: "Singapore", s: "Marina Bay", url: SITE }, { img: "resort", name: "Bali", s: "Beach resorts", url: SITE }, { img: "city-hotel", name: "Worldwide", s: "5-star stays", url: SITE }]) +
