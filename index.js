@@ -224,8 +224,9 @@ function toHtml(text) {
         <!-- Footer -->
         <tr>
           <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;">
-            <p style="margin:0;font-size:12px;color:#718096;">OS Travel and Tours &bull; 0333-5542877 &bull; ostravelisb@gmail.com</p>
-            <p style="margin:4px 0 0;font-size:12px;color:#718096;"><a href="https://www.ostravel.pk/" style="color:#2563ab;text-decoration:none;">www.ostravel.pk</a></p>
+            <p style="margin:0;font-size:12px;color:#718096;">O.S Travel &amp; Tours &bull; 0333 5542877 &bull; 051 2805570</p>
+            <p style="margin:4px 0 0;font-size:12px;color:#718096;">Office #3, Aaly Plaza, Fazal-e-Haq Rd, Blue Area, Islamabad</p>
+            <p style="margin:4px 0 0;font-size:12px;color:#718096;"><a href="https://www.ostravels.com" style="color:#2563ab;text-decoration:none;">www.ostravels.com</a></p>
           </td>
         </tr>
       </table>

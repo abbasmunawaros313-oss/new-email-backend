@@ -361,7 +361,10 @@ const templates = {
 export function renderEmail(templateType, data = {}) {
   const fn = templates[templateType];
   if (!fn) return null;
-  const r = fn(data);
+  // Null-safe view: any missing/null field reads as "" so a template can never
+  // print the literal "undefined" (falsy-fallbacks like `d.x || "—"` still work).
+  const safe = new Proxy(data || {}, { get: (t, k) => (t[k] == null ? "" : t[k]) });
+  const r = fn(safe);
   return { subject: r.subject, html: encodeNonAscii(r.html), text: r.text };
 }
 
